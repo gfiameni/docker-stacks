@@ -1,10 +1,9 @@
-# Copyright (c) Jupyter Development Team.
-# Distributed under the terms of the Modified BSD License.
+# Giuseppe
 
 # Debian Jessie image released 2016 May 03.
 FROM debian@sha256:32a225e412babcd54c0ea777846183c61003d125278882873fb2bc97f9057c51
 
-MAINTAINER Jupyter Project <jupyter@googlegroups.com>
+MAINTAINER 
 
 USER root
 
@@ -95,5 +94,174 @@ COPY start-singleuser.sh /usr/local/bin/
 COPY jupyter_notebook_config.py /home/$NB_USER/.jupyter/
 RUN chown -R $NB_USER:users /home/$NB_USER/.jupyter
 
-# Switch back to jovyan to avoid accidental container runs as root
+
+#
+# Minimal
+#
+
+
+# Install all OS dependencies for fully functional notebook server
+RUN apt-get update && apt-get install -yq --no-install-recommends \
+    git \
+    vim \
+    jed \
+    emacs \
+    build-essential \
+    python-dev \
+    unzip \
+    libsm6 \
+    pandoc \
+    texlive-latex-base \
+    texlive-latex-extra \
+    texlive-fonts-extra \
+    texlive-fonts-recommended \
+    texlive-generic-recommended \
+    libxrender1 \
+    inkscape \
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+
+# SciPy
+
+
+# libav-tools for matplotlib anim
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libav-tools && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 USER $NB_USER
+
+# Install Python 3 packages
+# Remove pyqt and qt pulled in for matplotlib since we're only ever going to
+# use notebook-friendly backends in these images
+RUN conda install --quiet --yes \
+    'nomkl' \
+    'ipywidgets=5.2*' \
+    'pandas=0.19*' \
+    'numexpr=2.6*' \
+    'matplotlib=1.5*' \
+    'scipy=0.17*' \
+    'seaborn=0.7*' \
+    'scikit-learn=0.17*' \
+    'scikit-image=0.11*' \
+    'sympy=1.0*' \
+    'cython=0.23*' \
+    'patsy=0.4*' \
+    'statsmodels=0.6*' \
+    'cloudpickle=0.1*' \
+    'dill=0.2*' \
+    'numba=0.23*' \
+    'bokeh=0.11*' \
+    'sqlalchemy=1.0*' \
+    'hdf5=1.8.17' \
+    'h5py=2.6*' && \
+    conda remove --quiet --yes --force qt pyqt && \
+    conda clean -tipsy
+
+# Activate ipywidgets extension in the environment that runs the notebook server
+RUN jupyter nbextension enable --py widgetsnbextension --sys-prefix
+
+# Install Python 2 packages
+# Remove pyqt and qt pulled in for matplotlib since we're only ever going to
+# use notebook-friendly backends in these images
+RUN conda create --quiet --yes -p $CONDA_DIR/envs/python2 python=2.7 \
+    'nomkl' \
+    'ipython=4.2*' \
+    'ipywidgets=5.2*' \
+    'pandas=0.19*' \
+    'numexpr=2.6*' \
+    'matplotlib=1.5*' \
+    'scipy=0.17*' \
+    'seaborn=0.7*' \
+    'scikit-learn=0.17*' \
+    'scikit-image=0.11*' \
+    'sympy=1.0*' \
+    'cython=0.23*' \
+    'patsy=0.4*' \
+    'statsmodels=0.6*' \
+    'cloudpickle=0.1*' \
+    'dill=0.2*' \
+    'numba=0.23*' \
+    'bokeh=0.11*' \
+    'hdf5=1.8.17' \
+    'h5py=2.6*' \
+    'sqlalchemy=1.0*' \
+    'pyzmq' && \
+    conda remove -n python2 --quiet --yes --force qt pyqt && \
+    conda clean -tipsy
+# Add shortcuts to distinguish pip for python2 and python3 envs
+RUN ln -s $CONDA_DIR/envs/python2/bin/pip $CONDA_DIR/bin/pip2 && \
+    ln -s $CONDA_DIR/bin/pip $CONDA_DIR/bin/pip3
+
+# Import matplotlib the first time to build the font cache.
+ENV XDG_CACHE_HOME /home/$NB_USER/.cache/
+RUN MPLBACKEND=Agg $CONDA_DIR/envs/python2/bin/python -c "import matplotlib.pyplot"
+
+# Configure ipython kernel to use matplotlib inline backend by default
+RUN mkdir -p $HOME/.ipython/profile_default/startup
+COPY mplimporthook.py $HOME/.ipython/profile_default/startup/
+
+USER root
+
+# Install Python 2 kernel spec globally to avoid permission problems when NB_UID
+# switching at runtime.
+RUN $CONDA_DIR/envs/python2/bin/python -m ipykernel install
+
+
+# Data Science
+
+
+# R pre-requisites
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    fonts-dejavu \
+    gfortran \
+    gcc && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Julia dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    julia \
+    libnettle4 && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+USER $NB_USER
+
+# R packages including IRKernel which gets installed globally.
+# Pin r-base to a specific build number for https://github.com/jupyter/docker-stacks/issues/210#issuecomment-246081809
+RUN conda config --add channels r && \
+    conda install --quiet --yes \
+    'rpy2=2.8*' \
+    'r-base=3.3.1 1' \
+    'r-irkernel=0.7*' \
+    'r-plyr=1.8*' \
+    'r-devtools=1.11*' \
+    'r-dplyr=0.4*' \
+    'r-ggplot2=2.1*' \
+    'r-tidyr=0.5*' \
+    'r-shiny=0.13*' \
+    'r-rmarkdown=0.9*' \
+    'r-forecast=7.1*' \
+    'r-stringr=1.0*' \
+    'r-rsqlite=1.0*' \
+    'r-reshape2=1.4*' \
+    'r-nycflights13=0.2*' \
+    'r-caret=6.0*' \
+    'r-rcurl=1.95*' \
+    'r-randomforest=4.6*' && conda clean -tipsy
+
+# Install IJulia packages as jovyan and then move the kernelspec out
+# to the system share location. Avoids problems with runtime UID change not
+# taking effect properly on the .local folder in the jovyan home dir.
+RUN julia -e 'Pkg.add("IJulia")' && \
+    mv $HOME/.local/share/jupyter/kernels/julia* $CONDA_DIR/share/jupyter/kernels/ && \
+    chmod -R go+rx $CONDA_DIR/share/jupyter && \
+    rm -rf $HOME/.local
+
+# Show Julia where conda libraries are
+# Add essential packages
+RUN echo "push!(Sys.DL_LOAD_PATH, \"$CONDA_DIR/lib\")" > /home/$NB_USER/.juliarc.jl && \
+    julia -e 'Pkg.add("Gadfly")' && julia -e 'Pkg.add("RDatasets")' && julia -F -e 'Pkg.add("HDF5")'
