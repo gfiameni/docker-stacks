@@ -35,7 +35,7 @@ RUN wget --quiet https://github.com/krallin/tini/releases/download/v0.10.0/tini 
 ENV CONDA_DIR /opt/conda
 ENV PATH $CONDA_DIR/bin:$PATH
 ENV SHELL /bin/bash
-ENV NB_USER unipol01
+ENV NB_USER xxxxxl01
 ENV NB_UID 35147
 ENV NB_GID 51082
 ENV HOME /home/$NB_USER
