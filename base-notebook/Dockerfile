@@ -3,7 +3,7 @@
 # Debian Jessie image released 2016 May 03.
 FROM debian@sha256:32a225e412babcd54c0ea777846183c61003d125278882873fb2bc97f9057c51
 
-MAINTAINER 
+MAINTAINER g.fiameni@cineca.it
 
 USER root
 
@@ -35,15 +35,20 @@ RUN wget --quiet https://github.com/krallin/tini/releases/download/v0.10.0/tini 
 ENV CONDA_DIR /opt/conda
 ENV PATH $CONDA_DIR/bin:$PATH
 ENV SHELL /bin/bash
-ENV NB_USER gfiameni
-ENV NB_UID 1000
+ENV NB_USER unipol01
+ENV NB_UID 35147
+ENV NB_GID 51082
 ENV HOME /home/$NB_USER
 ENV LC_ALL en_US.UTF-8
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US.UTF-8
 
+# Add group
+RUN groupadd -g $NB_GID DRES_UniML01
+
 # Create jovyan user with UID=1000 and in the 'users' group
-RUN useradd -m -s /bin/bash -N -u $NB_UID $NB_USER && \
+# RUN useradd -m -s /bin/bash -N -u $NB_UID -g $NB_GID $NB_USER && \
+RUN useradd -m -s /bin/bash -N -u $NB_UID -g $NB_GID $NB_USER && \
     mkdir -p $CONDA_DIR && \
     chown $NB_USER $CONDA_DIR
 
@@ -256,12 +261,12 @@ RUN conda config --add channels r && \
 # Install IJulia packages as jovyan and then move the kernelspec out
 # to the system share location. Avoids problems with runtime UID change not
 # taking effect properly on the .local folder in the jovyan home dir.
-RUN julia -e 'Pkg.add("IJulia")' && \
-    mv $HOME/.local/share/jupyter/kernels/julia* $CONDA_DIR/share/jupyter/kernels/ && \
-    chmod -R go+rx $CONDA_DIR/share/jupyter && \
-    rm -rf $HOME/.local
+# RUN julia -e 'Pkg.add("IJulia")' && \
+#    mv $HOME/.local/share/jupyter/kernels/julia* $CONDA_DIR/share/jupyter/kernels/ && \
+#    chmod -R go+rx $CONDA_DIR/share/jupyter && \
+#    rm -rf $HOME/.local
 
 # Show Julia where conda libraries are
 # Add essential packages
-RUN echo "push!(Sys.DL_LOAD_PATH, \"$CONDA_DIR/lib\")" > /home/$NB_USER/.juliarc.jl && \
-    julia -e 'Pkg.add("Gadfly")' && julia -e 'Pkg.add("RDatasets")' && julia -F -e 'Pkg.add("HDF5")'
+#RUN echo "push!(Sys.DL_LOAD_PATH, \"$CONDA_DIR/lib\")" > /home/$NB_USER/.juliarc.jl && \
+#    julia -e 'Pkg.add("Gadfly")' && julia -e 'Pkg.add("RDatasets")' && julia -F -e 'Pkg.add("HDF5")'
